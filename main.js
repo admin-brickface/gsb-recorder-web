@@ -5,8 +5,7 @@
 // Import styles
 import './style.css';
 
-// Import lamejs fork with proper ESM support
-import { Mp3Encoder } from '@breezystack/lamejs';
+// Note: lamejs is loaded via CDN script tag in HTML (global: lamejs)
 
 // ---- Google OAuth Config ----
 // Replace with your Google Cloud OAuth 2.0 Client ID
@@ -327,10 +326,8 @@ async function encodeToMp3(audioBlob) {
     const sampleRate = audioBuffer.sampleRate;
     const samples = audioBuffer.length;
 
-    // Create MP3 encoder (128 kbps)
-    const encoder = new Mp3Encoder(numberOfChannels, sampleRate, 128);
-
-
+    // Create MP3 encoder using global lamejs from CDN (128 kbps)
+    const encoder = new lamejs.Mp3Encoder(numberOfChannels, sampleRate, 128);
     const blockSize = 1152;
     const mp3Data = [];
 
