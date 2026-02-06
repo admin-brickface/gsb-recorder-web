@@ -5,6 +5,8 @@
 // Import styles
 import './style.css';
 
+// Import lamejs statically to ensure all dependencies resolve
+import lamejs from 'lamejs';
 
 // ---- Google OAuth Config ----
 // Replace with your Google Cloud OAuth 2.0 Client ID
@@ -325,12 +327,9 @@ async function encodeToMp3(audioBlob) {
     const sampleRate = audioBuffer.sampleRate;
     const samples = audioBuffer.length;
 
-    // Import lamejs - access the library directly
-    const lamejs = await import('lamejs');
-    const lib = lamejs.default || lamejs;
+    // Use statically imported lamejs
+    const encoder = new lamejs.Mp3Encoder(numberOfChannels, sampleRate, 128);
 
-    // Create encoder: channels, sampleRate, kbps
-    const encoder = new lib.Mp3Encoder(numberOfChannels, sampleRate, 128);
 
     const blockSize = 1152;
     const mp3Data = [];
