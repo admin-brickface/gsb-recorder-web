@@ -1,0 +1,360 @@
+/* ============================================
+   GSB Recorder - Premium Mobile-First Design
+   ============================================ */
+
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-card: rgba(25, 25, 45, 0.85);
+  --bg-card-border: rgba(255, 255, 255, 0.06);
+  --text-primary: #f0f0f5;
+  --text-secondary: #8888aa;
+  --text-muted: #55556e;
+  --accent: #6c5ce7;
+  --accent-glow: rgba(108, 92, 231, 0.35);
+  --record-red: #ff4757;
+  --record-red-glow: rgba(255, 71, 87, 0.4);
+  --success: #2ed573;
+  --warning: #ffa502;
+  --danger: #ff4757;
+  --google-blue: #4285f4;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-x: hidden;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(108, 92, 231, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 100%, rgba(255, 71, 87, 0.08) 0%, transparent 60%);
+}
+
+#app {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ---- Header ---- */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.logo-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent), #a855f7);
+  border-radius: 12px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #fff 30%, var(--text-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ---- Card ---- */
+.card {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+}
+
+/* ---- Field Group ---- */
+.field-group {
+  width: 100%;
+}
+
+.field-group label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.field-group input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 1rem;
+  font-family: var(--font);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: var(--transition);
+}
+
+.field-group input::placeholder {
+  color: var(--text-muted);
+}
+
+.field-group input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* ---- Record Button ---- */
+.record-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: var(--transition);
+}
+
+.record-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.record-btn-inner {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.record-btn:not(:disabled):hover .record-btn-inner {
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.record-btn:not(:disabled):active .record-btn-inner {
+  transform: scale(0.95);
+}
+
+.record-icon {
+  width: 38px;
+  height: 38px;
+  background: var(--record-red);
+  border-radius: 50%;
+  transition: var(--transition);
+  box-shadow: 0 0 20px var(--record-red-glow);
+}
+
+/* Recording state */
+.record-btn.recording .record-btn-inner {
+  border-color: var(--record-red);
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+.record-btn.recording .record-icon {
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 0 30px var(--record-red-glow);
+}
+
+.record-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+}
+
+.record-btn.recording .record-label {
+  color: var(--record-red);
+}
+
+@keyframes pulse-ring {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--record-red-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+
+/* ---- Timer ---- */
+.timer {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+
+.timer.active {
+  color: var(--text-primary);
+}
+
+/* ---- Status ---- */
+.status-area {
+  width: 100%;
+  text-align: center;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.status-text.success {
+  color: var(--success);
+}
+
+.status-text.error {
+  color: var(--danger);
+}
+
+.status-text.warning {
+  color: var(--warning);
+}
+
+/* ---- Google Sign-In Button ---- */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 0.95rem;
+  font-family: var(--font);
+  font-weight: 600;
+  color: #fff;
+  background: var(--google-blue);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.google-btn:hover {
+  background: #3367d6;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(66, 133, 244, 0.3);
+}
+
+.google-btn:active {
+  transform: translateY(0);
+}
+
+/* ---- Overlay ---- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.overlay-card {
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius);
+  padding: 36px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+}
+
+.overlay-card p {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 380px) {
+  .card {
+    padding: 22px 18px;
+  }
+  .timer {
+    font-size: 1.6rem;
+  }
+}
+
+@media (min-width: 768px) {
+  #app {
+    max-width: 480px;
+  }
+  .card {
+    padding: 36px 32px;
+  }
+}
