@@ -321,12 +321,12 @@ async function encodeToMp3(audioBlob) {
     const sampleRate = audioBuffer.sampleRate;
     const samples = audioBuffer.length;
 
-    // Import lamejs
+    // Import lamejs - access the library directly
     const lamejs = await import('lamejs');
-    const Mp3Encoder = lamejs.default ? lamejs.default.Mp3Encoder : lamejs.Mp3Encoder;
+    const lib = lamejs.default || lamejs;
 
     // Create encoder: channels, sampleRate, kbps
-    const encoder = new Mp3Encoder(numberOfChannels, sampleRate, 128);
+    const encoder = new lib.Mp3Encoder(numberOfChannels, sampleRate, 128);
 
     const blockSize = 1152;
     const mp3Data = [];

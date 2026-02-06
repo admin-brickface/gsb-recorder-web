@@ -3,19 +3,19 @@
    ============================================ */
 
 :root {
-  --bg-primary: #0f0f1a;
-  --bg-card: rgba(25, 25, 45, 0.85);
-  --bg-card-border: rgba(255, 255, 255, 0.06);
+  --bg-primary: #1C2541;
+  --bg-card: rgba(28, 37, 65, 0.9);
+  --bg-card-border: rgba(247, 147, 26, 0.15);
   --text-primary: #f0f0f5;
-  --text-secondary: #8888aa;
-  --text-muted: #55556e;
-  --accent: #6c5ce7;
-  --accent-glow: rgba(108, 92, 231, 0.35);
-  --record-red: #ff4757;
-  --record-red-glow: rgba(255, 71, 87, 0.4);
-  --success: #2ed573;
-  --warning: #ffa502;
-  --danger: #ff4757;
+  --text-secondary: #a8b2d1;
+  --text-muted: #6b7a9e;
+  --accent: #F7931A;
+  --accent-glow: rgba(247, 147, 26, 0.4);
+  --record-red: #FF5722;
+  --record-red-glow: rgba(255, 87, 34, 0.4);
+  --success: #4CAF50;
+  --warning: #FF9500;
+  --danger: #FF5722;
   --google-blue: #4285f4;
   --radius: 16px;
   --radius-sm: 10px;
@@ -47,8 +47,8 @@ body {
   padding: 20px;
   overflow-x: hidden;
   background-image:
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(108, 92, 231, 0.12) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 80% 100%, rgba(255, 71, 87, 0.08) 0%, transparent 60%);
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(247, 147, 26, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 100%, rgba(255, 149, 0, 0.1) 0%, transparent 60%);
 }
 
 #app {
@@ -73,7 +73,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--accent), #a855f7);
+  background: linear-gradient(135deg, var(--accent), #FF9500);
   border-radius: 12px;
   color: #fff;
   flex-shrink: 0;
@@ -218,9 +218,12 @@ body {
 }
 
 @keyframes pulse-ring {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 var(--record-red-glow);
   }
+
   50% {
     box-shadow: 0 0 0 12px transparent;
   }
@@ -337,7 +340,9 @@ body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ---- Responsive ---- */
@@ -345,6 +350,7 @@ body {
   .card {
     padding: 22px 18px;
   }
+
   .timer {
     font-size: 1.6rem;
   }
@@ -354,6 +360,7 @@ body {
   #app {
     max-width: 480px;
   }
+
   .card {
     padding: 36px 32px;
   }
