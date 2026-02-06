@@ -2,6 +2,10 @@
 // GSB Recorder - Main Application
 // ============================================
 
+// Import styles
+import './style.css';
+
+
 // ---- Google OAuth Config ----
 // Replace with your Google Cloud OAuth 2.0 Client ID
 const GOOGLE_CLIENT_ID = '854688270436-dnvjhq5nqpqi087gkr3h863nqir7kqma.apps.googleusercontent.com';
