@@ -5,8 +5,8 @@
 // Import styles
 import './style.css';
 
-// Import lamejs as wildcard to ensure all internal classes are available
-import * as lamejs from 'lamejs';
+// Import lamejs fork with proper ESM support
+import { Mp3Encoder } from '@breezystack/lamejs';
 
 // ---- Google OAuth Config ----
 // Replace with your Google Cloud OAuth 2.0 Client ID
@@ -327,19 +327,9 @@ async function encodeToMp3(audioBlob) {
     const sampleRate = audioBuffer.sampleRate;
     const samples = audioBuffer.length;
 
-    // Debug lamejs structure
-    console.log('lamejs object:', lamejs);
-    console.log('lamejs keys:', Object.keys(lamejs));
+    // Create MP3 encoder (128 kbps)
+    const encoder = new Mp3Encoder(numberOfChannels, sampleRate, 128);
 
-    // Try different ways to access Mp3Encoder
-    let encoder;
-    if (lamejs.Mp3Encoder) {
-        encoder = new lamejs.Mp3Encoder(numberOfChannels, sampleRate, 128);
-    } else if (lamejs.default && lamejs.default.Mp3Encoder) {
-        encoder = new lamejs.default.Mp3Encoder(numberOfChannels, sampleRate, 128);
-    } else {
-        throw new Error('Could not find Mp3Encoder in lamejs. Available keys: ' + Object.keys(lamejs).join(', '));
-    }
 
     const blockSize = 1152;
     const mp3Data = [];
