@@ -510,7 +510,7 @@ function startSpeechRecognition() {
     speechRecognition.onresult = (event) => {
         let interimTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; i++) {
+        for (let i = 0; i < event.results.length; i++) {
             const result = event.results[i];
             if (result.isFinal) {
                 finalTranscript += result[0].transcript + ' ';
@@ -519,7 +519,9 @@ function startSpeechRecognition() {
             }
         }
 
-        transcript = finalTranscript.trim();
+        // Store both final and interim results
+        transcript = (finalTranscript + interimTranscript).trim();
+        console.log('Transcript:', transcript.substring(0, 100));
     };
 
     speechRecognition.onerror = (event) => {
@@ -574,15 +576,25 @@ async function uploadBothFiles(mp3Blob, transcriptBlob, baseFileName) {
     showOverlay('Uploading to Google Drive...');
     setStatus('Uploading MP3...', 'warning');
 
+    console.log('uploadBothFiles called with:', {
+        mp3Size: mp3Blob.size,
+        transcriptSize: transcriptBlob.size,
+        baseFileName
+    });
+
     try {
         // Upload MP3
+        console.log('Uploading MP3...');
         await uploadSingleFile(mp3Blob, `${baseFileName}.mp3`, 'audio/mpeg');
+        console.log('MP3 uploaded successfully');
 
         setStatus('Uploading transcript...', 'warning');
         updateOverlay('Uploading transcript...');
 
         // Upload transcript
+        console.log('Uploading transcript...');
         await uploadSingleFile(transcriptBlob, `${baseFileName}.txt`, 'text/plain');
+        console.log('Transcript uploaded successfully');
 
         hideOverlay();
         setStatus(`Uploaded "${baseFileName}" (MP3 + transcript) to Google Drive ✓`, 'success');
