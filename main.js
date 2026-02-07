@@ -525,24 +525,29 @@ function startSpeechRecognition() {
     };
 
     speechRecognition.onerror = (event) => {
-        console.warn('Speech recognition error:', event.error);
+        console.warn('Speech recognition error:', event.error, event);
         // Don't stop recording on error, just note it
         if (event.error === 'no-speech') {
-            // This is common, ignore it
+            console.log('No speech detected, continuing...');
         } else if (event.error === 'aborted') {
-            // User or system aborted, ignore
+            console.log('Speech recognition aborted');
         } else {
-            transcript = finalTranscript.trim() || '(Transcription error: ' + event.error + ')';
+            console.error('Speech recognition error:', event.error);
+            if (!transcript) {
+                transcript = '(Transcription error: ' + event.error + ')';
+            }
         }
     };
 
     speechRecognition.onend = () => {
+        console.log('Speech recognition ended. isRecording:', isRecording);
         // If still recording, restart recognition (it auto-stops after silence)
         if (isRecording && speechRecognition) {
             try {
+                console.log('Restarting speech recognition...');
                 speechRecognition.start();
             } catch (e) {
-                // Already started, ignore
+                console.warn('Could not restart speech recognition:', e);
             }
         }
     };
