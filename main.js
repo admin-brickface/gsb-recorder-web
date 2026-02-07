@@ -23,11 +23,6 @@ let recordingStartTime = null;
 let accessToken = null;
 let tokenClient = null;
 
-// ---- Speech Recognition State ----
-let speechRecognition = null;
-let transcript = '';
-let isTranscribing = false;
-
 // ---- DOM Elements ----
 const customerNameInput = document.getElementById('customerName');
 const recordBtn = document.getElementById('recordBtn');
@@ -85,9 +80,9 @@ function initTokenClient() {
 
             // If we have a pending upload, do it now
             if (window._pendingUpload) {
-                const { mp3Blob, transcriptBlob, baseFileName } = window._pendingUpload;
+                const { blob, fileName } = window._pendingUpload;
                 window._pendingUpload = null;
-                uploadBothFiles(mp3Blob, transcriptBlob, baseFileName);
+                uploadToDrive(blob, fileName);
             }
         },
     });
@@ -175,9 +170,6 @@ async function startRecording() {
         // Start silent audio for background persistence
         startBackgroundPersistence();
 
-        // Start speech recognition for transcription
-        startSpeechRecognition();
-
     } catch (err) {
         console.error('Recording error:', err);
         if (err.name === 'NotAllowedError') {
@@ -230,9 +222,6 @@ function stopRecording() {
 
     // Stop background persistence
     stopBackgroundPersistence();
-
-    // Stop speech recognition
-    stopSpeechRecognition();
 }
 
 function updateTimer() {
@@ -298,31 +287,27 @@ async function handleRecordingComplete() {
         const audioBlob = new Blob(audioChunks, { type: audioChunks[0]?.type || 'audio/webm' });
         const customerName = customerNameInput.value.trim();
         const dateStr = formatDate(new Date());
-        const baseFileName = `${customerName} - ${dateStr}`;
+        const fileName = `${customerName} - ${dateStr}.mp3`;
 
         setStatus('Encoding MP3...', 'warning');
         updateOverlay('Encoding to MP3...');
 
         const mp3Blob = await encodeToMp3(audioBlob);
 
-        // Create transcript blob
-        const transcriptContent = transcript || '(No transcription available)';
-        const transcriptBlob = new Blob([transcriptContent], { type: 'text/plain' });
-
         setStatus('MP3 encoded ✓', 'success');
 
         // Check if we have Google auth
         if (!accessToken) {
             // Store the pending upload and prompt sign-in
-            window._pendingUpload = { mp3Blob, transcriptBlob, baseFileName };
+            window._pendingUpload = { blob: mp3Blob, fileName };
             hideOverlay();
             setStatus('Sign in to Google to upload your recording', 'warning');
             googleSignInBtn.style.display = 'flex';
             return;
         }
 
-        // Upload both files to Google Drive
-        await uploadBothFiles(mp3Blob, transcriptBlob, baseFileName);
+        // Upload to Google Drive
+        await uploadToDrive(mp3Blob, fileName);
 
     } catch (err) {
         console.error('Processing error:', err);
@@ -483,213 +468,6 @@ async function uploadToDrive(blob, fileName) {
         hideOverlay();
         setStatus('Upload failed: ' + err.message, 'error');
     }
-}
-
-// ============================================
-// Speech Recognition / Transcription
-// ============================================
-function startSpeechRecognition() {
-    // Check for browser support
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        console.warn('Speech recognition not supported in this browser');
-        transcript = '(Speech recognition not supported in this browser)';
-        return;
-    }
-
-    // Reset transcript
-    transcript = '';
-
-    speechRecognition = new SpeechRecognition();
-    speechRecognition.continuous = true;
-    speechRecognition.interimResults = true;
-    speechRecognition.lang = 'en-US';
-
-    // Diagnostic events
-    speechRecognition.onaudiostart = () => console.log('🎤 Audio capture started');
-    speechRecognition.onaudioend = () => console.log('🎤 Audio capture ended');
-    speechRecognition.onsoundstart = () => console.log('🔊 Sound detected');
-    speechRecognition.onsoundend = () => console.log('🔊 Sound ended');
-    speechRecognition.onspeechstart = () => console.log('🗣️ Speech detected');
-    speechRecognition.onspeechend = () => console.log('🗣️ Speech ended');
-    speechRecognition.onstart = () => console.log('✅ Recognition service started');
-
-    let finalTranscript = '';
-
-    speechRecognition.onresult = (event) => {
-        let interimTranscript = '';
-
-        for (let i = 0; i < event.results.length; i++) {
-            const result = event.results[i];
-            if (result.isFinal) {
-                finalTranscript += result[0].transcript + ' ';
-            } else {
-                interimTranscript += result[0].transcript;
-            }
-        }
-
-        // Store both final and interim results
-        transcript = (finalTranscript + interimTranscript).trim();
-        console.log('Transcript:', transcript.substring(0, 100));
-    };
-
-    speechRecognition.onerror = (event) => {
-        console.warn('Speech recognition error:', event.error, event);
-        // Don't stop recording on error, just note it
-        if (event.error === 'no-speech') {
-            console.log('No speech detected, continuing...');
-        } else if (event.error === 'aborted') {
-            console.log('Speech recognition aborted');
-        } else {
-            console.error('Speech recognition error:', event.error);
-            if (!transcript) {
-                transcript = '(Transcription error: ' + event.error + ')';
-            }
-        }
-    };
-
-    speechRecognition.onend = () => {
-        console.log('Speech recognition ended. isRecording:', isRecording);
-        // If still recording, restart recognition (it auto-stops after silence)
-        if (isRecording && speechRecognition) {
-            try {
-                console.log('Restarting speech recognition...');
-                speechRecognition.start();
-            } catch (e) {
-                console.warn('Could not restart speech recognition:', e);
-            }
-        }
-    };
-
-    try {
-        speechRecognition.start();
-        isTranscribing = true;
-        console.log('Speech recognition started');
-    } catch (err) {
-        console.error('Could not start speech recognition:', err);
-        transcript = '(Could not start transcription)';
-    }
-}
-
-function stopSpeechRecognition() {
-    if (speechRecognition) {
-        try {
-            speechRecognition.stop();
-        } catch (e) {
-            // Already stopped
-        }
-        speechRecognition = null;
-    }
-    isTranscribing = false;
-}
-
-// ============================================
-// Upload Both Files (MP3 + Transcript)
-// ============================================
-async function uploadBothFiles(mp3Blob, transcriptBlob, baseFileName) {
-    showOverlay('Uploading to Google Drive...');
-    setStatus('Uploading MP3...', 'warning');
-
-    console.log('uploadBothFiles called with:', {
-        mp3Size: mp3Blob.size,
-        transcriptSize: transcriptBlob.size,
-        baseFileName
-    });
-
-    try {
-        // Upload MP3
-        console.log('Uploading MP3...');
-        await uploadSingleFile(mp3Blob, `${baseFileName}.mp3`, 'audio/mpeg');
-        console.log('MP3 uploaded successfully');
-
-        setStatus('Uploading transcript...', 'warning');
-        updateOverlay('Uploading transcript...');
-
-        // Upload transcript
-        console.log('Uploading transcript...');
-        await uploadSingleFile(transcriptBlob, `${baseFileName}.txt`, 'text/plain');
-        console.log('Transcript uploaded successfully');
-
-        hideOverlay();
-        setStatus(`Uploaded "${baseFileName}" (MP3 + transcript) to Google Drive ✓`, 'success');
-        timerEl.textContent = '00:00:00';
-
-        // Reset transcript for next recording
-        transcript = '';
-
-    } catch (err) {
-        console.error('Upload error:', err);
-        hideOverlay();
-
-        // Handle token expiry
-        if (err.message?.includes('401') || err.message?.includes('expired')) {
-            accessToken = null;
-            window._pendingUpload = { mp3Blob, transcriptBlob, baseFileName };
-            setStatus('Session expired. Please sign in again.', 'warning');
-            googleSignInBtn.style.display = 'flex';
-            return;
-        }
-
-        setStatus('Upload failed: ' + err.message, 'error');
-    }
-}
-
-async function uploadSingleFile(blob, fileName, mimeType) {
-    const metadata = {
-        name: fileName,
-        mimeType: mimeType,
-        parents: [DRIVE_FOLDER_ID],
-    };
-
-    // Build multipart request
-    const boundary = '-------gsb_recorder_boundary';
-    const delimiter = '\r\n--' + boundary + '\r\n';
-    const closeDelimiter = '\r\n--' + boundary + '--';
-
-    const metadataStr = JSON.stringify(metadata);
-
-    // Read blob as base64
-    const base64Data = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const dataUrl = reader.result;
-            const base64 = dataUrl.split(',')[1];
-            resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-
-    const multipartBody =
-        delimiter +
-        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-        metadataStr +
-        delimiter +
-        `Content-Type: ${mimeType}\r\n` +
-        'Content-Transfer-Encoding: base64\r\n\r\n' +
-        base64Data +
-        closeDelimiter;
-
-    const response = await fetch(
-        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-        {
-            method: 'POST',
-            headers: {
-                Authorization: 'Bearer ' + accessToken,
-                'Content-Type': 'multipart/related; boundary=' + boundary,
-            },
-            body: multipartBody,
-        }
-    );
-
-    if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `Upload failed (${response.status})`);
-    }
-
-    const result = await response.json();
-    console.log('Upload successful:', fileName, result);
-    return result;
 }
 
 // ============================================
