@@ -505,6 +505,15 @@ function startSpeechRecognition() {
     speechRecognition.interimResults = true;
     speechRecognition.lang = 'en-US';
 
+    // Diagnostic events
+    speechRecognition.onaudiostart = () => console.log('🎤 Audio capture started');
+    speechRecognition.onaudioend = () => console.log('🎤 Audio capture ended');
+    speechRecognition.onsoundstart = () => console.log('🔊 Sound detected');
+    speechRecognition.onsoundend = () => console.log('🔊 Sound ended');
+    speechRecognition.onspeechstart = () => console.log('🗣️ Speech detected');
+    speechRecognition.onspeechend = () => console.log('🗣️ Speech ended');
+    speechRecognition.onstart = () => console.log('✅ Recognition service started');
+
     let finalTranscript = '';
 
     speechRecognition.onresult = (event) => {
