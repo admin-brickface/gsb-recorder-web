@@ -454,14 +454,6 @@ function floatTo16BitPCM(float32Array) {
 // ============================================
 // Google Drive Upload
 // ============================================
-function handleGoogleSignIn() {
-    if (tokenClient) {
-        tokenClient.requestAccessToken();
-    } else {
-        setStatus('Google Identity Services not loaded yet. Please wait.', 'error');
-    }
-}
-
 async function uploadToDrive(blob, fileName) {
     showOverlay('Uploading to Google Drive...');
     setStatus('Uploading to Google Drive...', 'warning');
