@@ -81,13 +81,20 @@ function init() {
 // Handle OAuth callback with tokens in URL fragment
 function handleOAuthCallback() {
     const hash = window.location.hash.substring(1);
+    console.log('OAuth callback check - hash:', hash);
     if (!hash) return;
 
     const params = new URLSearchParams(hash);
     const accessTokenFromUrl = params.get('access_token');
     const refreshToken = params.get('refresh_token');
 
+    console.log('Tokens found:', {
+        hasAccessToken: !!accessTokenFromUrl,
+        hasRefreshToken: !!refreshToken
+    });
+
     if (accessTokenFromUrl && refreshToken) {
+        console.log('Storing tokens...');
         // Store tokens
         accessToken = accessTokenFromUrl;
         localStorage.setItem('google_refresh_token', refreshToken);
@@ -97,6 +104,7 @@ function handleOAuthCallback() {
 
         googleSignInBtn.style.display = 'none';
         setStatus('Signed in to Google ✓', 'success');
+        console.log('Tokens stored successfully!');
 
         // If we have a pending upload, do it now
         if (window._pendingUpload) {
