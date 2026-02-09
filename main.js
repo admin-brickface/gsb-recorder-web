@@ -37,6 +37,24 @@ const overlayText = document.getElementById('overlayText');
 const silentAudio = document.getElementById('silentAudio');
 
 // ============================================
+// Google OAuth Sign-In
+// ============================================
+function handleGoogleSignIn() {
+    // Build OAuth URL
+    const redirectUri = `${window.location.origin}/api/auth`;
+    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
+    authUrl.searchParams.set('redirect_uri', redirectUri);
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('scope', SCOPES);
+    authUrl.searchParams.set('access_type', 'offline'); // Request refresh token
+    authUrl.searchParams.set('prompt', 'consent'); // Force consent to always get refresh token
+
+    // Redirect to Google OAuth
+    window.location.href = authUrl.toString();
+}
+
+// ============================================
 // Initialization
 // ============================================
 function init() {
@@ -53,39 +71,92 @@ function init() {
         navigator.serviceWorker.register('/sw.js').catch(() => { });
     }
 
-    // Initialize Google Identity Services when loaded
-    waitForGoogleIdentity();
+    // Check for OAuth callback (tokens in URL fragment)
+    handleOAuthCallback();
+
+    // Try to load existing refresh token and get new access token
+    tryAutoLogin();
 }
 
-function waitForGoogleIdentity() {
-    if (typeof google !== 'undefined' && google.accounts) {
-        initTokenClient();
-    } else {
-        setTimeout(waitForGoogleIdentity, 100);
+// Handle OAuth callback with tokens in URL fragment
+function handleOAuthCallback() {
+    const hash = window.location.hash.substring(1);
+    if (!hash) return;
+
+    const params = new URLSearchParams(hash);
+    const accessTokenFromUrl = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+
+    if (accessTokenFromUrl && refreshToken) {
+        // Store tokens
+        accessToken = accessTokenFromUrl;
+        localStorage.setItem('google_refresh_token', refreshToken);
+
+        // Clear URL fragment
+        window.history.replaceState(null, '', window.location.pathname);
+
+        googleSignInBtn.style.display = 'none';
+        setStatus('Signed in to Google ✓', 'success');
+
+        // If we have a pending upload, do it now
+        if (window._pendingUpload) {
+            const { blob, fileName } = window._pendingUpload;
+            window._pendingUpload = null;
+            uploadToDrive(blob, fileName);
+        }
     }
 }
 
-function initTokenClient() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: SCOPES,
-        callback: (response) => {
-            if (response.error) {
-                setStatus('Google sign-in failed. Please try again.', 'error');
-                return;
-            }
-            accessToken = response.access_token;
+// Try to automatically log in using stored refresh token
+async function tryAutoLogin() {
+    const refreshToken = localStorage.getItem('google_refresh_token');
+    if (!refreshToken) {
+        // No refresh token - user needs to sign in
+        return;
+    }
+
+    try {
+        const newAccessToken = await refreshAccessToken(refreshToken);
+        if (newAccessToken) {
+            accessToken = newAccessToken;
             googleSignInBtn.style.display = 'none';
             setStatus('Signed in to Google ✓', 'success');
+        }
+    } catch (err) {
+        console.error('Auto-login failed:', err);
+        // Refresh token is invalid, clear it
+        localStorage.removeItem('google_refresh_token');
+    }
+}
 
-            // If we have a pending upload, do it now
-            if (window._pendingUpload) {
-                const { blob, fileName } = window._pendingUpload;
-                window._pendingUpload = null;
-                uploadToDrive(blob, fileName);
+// Refresh access token using refresh token
+async function refreshAccessToken(refreshToken) {
+    try {
+        const response = await fetch('/api/refresh', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            if (error.error === 'invalid_refresh_token') {
+                // Refresh token expired, user needs to re-login
+                localStorage.removeItem('google_refresh_token');
+                googleSignInBtn.style.display = 'flex';
+                setStatus('Please sign in again', 'warning');
             }
-        },
-    });
+            return null;
+        }
+
+        const data = await response.json();
+        return data.access_token;
+    } catch (err) {
+        console.error('Token refresh error:', err);
+        return null;
+    }
 }
 
 // ============================================
@@ -445,8 +516,19 @@ async function uploadToDrive(blob, fileName) {
 
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            // If token expired, re-auth
+            // If token expired, try refreshing
             if (response.status === 401) {
+                const refreshToken = localStorage.getItem('google_refresh_token');
+                if (refreshToken) {
+                    // Try to refresh token and retry upload
+                    const newAccessToken = await refreshAccessToken(refreshToken);
+                    if (newAccessToken) {
+                        accessToken = newAccessToken;
+                        // Retry upload with new token
+                        return await uploadToDrive(blob, fileName);
+                    }
+                }
+                // Refresh failed or no refresh token - need to re-login
                 accessToken = null;
                 window._pendingUpload = { blob, fileName };
                 hideOverlay();
