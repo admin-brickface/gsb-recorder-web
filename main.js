@@ -260,15 +260,29 @@ async function startRecording() {
 }
 
 function getSupportedMimeType() {
-    const types = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/ogg;codecs=opus',
-        'audio/mp4',
-        'audio/aac',
-    ];
+    // iOS Safari can record WebM but cannot decode it with AudioContext
+    // so we prioritize mp4/aac for iOS which it can both record AND decode
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    const types = isIOS
+        ? [
+            'audio/mp4',
+            'audio/aac',
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+        ]
+        : [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+            'audio/mp4',
+            'audio/aac',
+        ];
+
     for (const type of types) {
         if (MediaRecorder.isTypeSupported(type)) {
+            console.log('Selected MIME type:', type, '(iOS:', isIOS, ')');
             return type;
         }
     }
@@ -396,58 +410,77 @@ async function handleRecordingComplete() {
 }
 
 async function encodeToMp3(audioBlob) {
-    // Decode the audio blob to PCM using AudioContext
-    const arrayBuffer = await audioBlob.arrayBuffer();
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    try {
+        // Decode the audio blob to PCM using AudioContext
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-    const numberOfChannels = audioBuffer.numberOfChannels;
-    const sampleRate = audioBuffer.sampleRate;
-    const samples = audioBuffer.length;
+        let audioBuffer;
+        try {
+            audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        } catch (decodeError) {
+            console.error('Audio decoding error:', decodeError);
+            console.log('Audio blob type:', audioBlob.type);
+            console.log('Audio blob size:', audioBlob.size);
 
-    // Create MP3 encoder using global lamejs from CDN (128 kbps)
-    const encoder = new lamejs.Mp3Encoder(numberOfChannels, sampleRate, 128);
-    const blockSize = 1152;
-    const mp3Data = [];
+            // iOS Safari specific error - try to provide helpful message
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                throw new Error('iOS Safari cannot decode this audio format. This is a known limitation. Try using the native iOS app instead, or report this issue.');
+            }
+            throw new Error('Could not decode audio: ' + decodeError.message);
+        }
 
-    if (numberOfChannels === 1) {
-        // Mono
-        const channelData = audioBuffer.getChannelData(0);
-        const samples16 = floatTo16BitPCM(channelData);
+        const numberOfChannels = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const samples = audioBuffer.length;
 
-        for (let i = 0; i < samples16.length; i += blockSize) {
-            const chunk = samples16.subarray(i, i + blockSize);
-            const mp3buf = encoder.encodeBuffer(chunk);
-            if (mp3buf.length > 0) {
-                mp3Data.push(mp3buf);
+        // Create MP3 encoder using global lamejs from CDN (128 kbps)
+        const encoder = new lamejs.Mp3Encoder(numberOfChannels, sampleRate, 128);
+        const blockSize = 1152;
+        const mp3Data = [];
+
+        if (numberOfChannels === 1) {
+            // Mono
+            const channelData = audioBuffer.getChannelData(0);
+            const samples16 = floatTo16BitPCM(channelData);
+
+            for (let i = 0; i < samples16.length; i += blockSize) {
+                const chunk = samples16.subarray(i, i + blockSize);
+                const mp3buf = encoder.encodeBuffer(chunk);
+                if (mp3buf.length > 0) {
+                    mp3Data.push(mp3buf);
+                }
+            }
+        } else {
+            // Stereo
+            const leftData = audioBuffer.getChannelData(0);
+            const rightData = audioBuffer.getChannelData(1);
+            const leftSamples = floatTo16BitPCM(leftData);
+            const rightSamples = floatTo16BitPCM(rightData);
+
+            for (let i = 0; i < leftSamples.length; i += blockSize) {
+                const leftChunk = leftSamples.subarray(i, i + blockSize);
+                const rightChunk = rightSamples.subarray(i, i + blockSize);
+                const mp3buf = encoder.encodeBuffer(leftChunk, rightChunk);
+                if (mp3buf.length > 0) {
+                    mp3Data.push(mp3buf);
+                }
             }
         }
-    } else {
-        // Stereo
-        const leftData = audioBuffer.getChannelData(0);
-        const rightData = audioBuffer.getChannelData(1);
-        const leftSamples = floatTo16BitPCM(leftData);
-        const rightSamples = floatTo16BitPCM(rightData);
 
-        for (let i = 0; i < leftSamples.length; i += blockSize) {
-            const leftChunk = leftSamples.subarray(i, i + blockSize);
-            const rightChunk = rightSamples.subarray(i, i + blockSize);
-            const mp3buf = encoder.encodeBuffer(leftChunk, rightChunk);
-            if (mp3buf.length > 0) {
-                mp3Data.push(mp3buf);
-            }
+        // Flush
+        const end = encoder.flush();
+        if (end.length > 0) {
+            mp3Data.push(end);
         }
+
+        await audioContext.close();
+
+        return new Blob(mp3Data, { type: 'audio/mp3' });
+    } catch (err) {
+        console.error('MP3 encoding error:', err);
+        throw err;
     }
-
-    // Flush
-    const end = encoder.flush();
-    if (end.length > 0) {
-        mp3Data.push(end);
-    }
-
-    await audioContext.close();
-
-    return new Blob(mp3Data, { type: 'audio/mp3' });
 }
 
 function floatTo16BitPCM(float32Array) {
