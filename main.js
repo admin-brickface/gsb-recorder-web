@@ -399,6 +399,17 @@ async function handleRecordingComplete() {
             return;
         }
 
+        // Refresh access token BEFORE uploading (it likely expired during long recordings)
+        const refreshToken = localStorage.getItem('google_refresh_token');
+        if (refreshToken) {
+            updateOverlay('Refreshing login...');
+            const newToken = await refreshAccessToken(refreshToken);
+            if (newToken) {
+                accessToken = newToken;
+                console.log('Access token refreshed before upload');
+            }
+        }
+
         // Upload to Google Drive
         await uploadToDrive(mp3Blob, fileName);
 
@@ -493,75 +504,48 @@ function floatTo16BitPCM(float32Array) {
 }
 
 // ============================================
-// Google Drive Upload
+// Google Drive Upload (Resumable - handles large files)
 // ============================================
 async function uploadToDrive(blob, fileName) {
     showOverlay('Uploading to Google Drive...');
     setStatus('Uploading to Google Drive...', 'warning');
 
     try {
+        const fileSizeMB = (blob.size / (1024 * 1024)).toFixed(1);
+        console.log(`Uploading ${fileName} (${fileSizeMB} MB)`);
+
+        // Step 1: Initiate resumable upload session
         const metadata = {
             name: fileName,
             mimeType: 'audio/mpeg',
             parents: [DRIVE_FOLDER_ID],
         };
 
-        // Build multipart request
-        const boundary = '-------gsb_recorder_boundary';
-        const delimiter = '\r\n--' + boundary + '\r\n';
-        const closeDelimiter = '\r\n--' + boundary + '--';
-
-        const metadataStr = JSON.stringify(metadata);
-
-        // Read blob as base64
-        const reader = new FileReader();
-        const base64Data = await new Promise((resolve, reject) => {
-            reader.onload = () => {
-                const dataUrl = reader.result;
-                const base64 = dataUrl.split(',')[1];
-                resolve(base64);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-
-        const multipartBody =
-            delimiter +
-            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-            metadataStr +
-            delimiter +
-            'Content-Type: audio/mpeg\r\n' +
-            'Content-Transfer-Encoding: base64\r\n\r\n' +
-            base64Data +
-            closeDelimiter;
-
-        const response = await fetch(
-            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+        const initResponse = await fetch(
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
             {
                 method: 'POST',
                 headers: {
                     Authorization: 'Bearer ' + accessToken,
-                    'Content-Type': 'multipart/related; boundary=' + boundary,
+                    'Content-Type': 'application/json; charset=UTF-8',
+                    'X-Upload-Content-Type': 'audio/mpeg',
+                    'X-Upload-Content-Length': blob.size,
                 },
-                body: multipartBody,
+                body: JSON.stringify(metadata),
             }
         );
 
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
+        if (!initResponse.ok) {
             // If token expired, try refreshing
-            if (response.status === 401) {
+            if (initResponse.status === 401) {
                 const refreshToken = localStorage.getItem('google_refresh_token');
                 if (refreshToken) {
-                    // Try to refresh token and retry upload
                     const newAccessToken = await refreshAccessToken(refreshToken);
                     if (newAccessToken) {
                         accessToken = newAccessToken;
-                        // Retry upload with new token
                         return await uploadToDrive(blob, fileName);
                     }
                 }
-                // Refresh failed or no refresh token - need to re-login
                 accessToken = null;
                 window._pendingUpload = { blob, fileName };
                 hideOverlay();
@@ -569,10 +553,34 @@ async function uploadToDrive(blob, fileName) {
                 googleSignInBtn.style.display = 'flex';
                 return;
             }
-            throw new Error(errData.error?.message || `Upload failed (${response.status})`);
+            const errData = await initResponse.json().catch(() => ({}));
+            throw new Error(errData.error?.message || `Upload init failed (${initResponse.status})`);
         }
 
-        const result = await response.json();
+        // Get the resumable upload URL
+        const uploadUrl = initResponse.headers.get('Location');
+        if (!uploadUrl) {
+            throw new Error('No upload URL returned from Google Drive');
+        }
+
+        // Step 2: Upload the actual file data as binary
+        updateOverlay(`Uploading ${fileSizeMB} MB...`);
+
+        const uploadResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'audio/mpeg',
+                'Content-Length': blob.size,
+            },
+            body: blob, // Send raw binary - no base64 encoding needed!
+        });
+
+        if (!uploadResponse.ok) {
+            const errData = await uploadResponse.json().catch(() => ({}));
+            throw new Error(errData.error?.message || `Upload failed (${uploadResponse.status})`);
+        }
+
+        const result = await uploadResponse.json();
         hideOverlay();
         setStatus(`Uploaded "${fileName}" to Google Drive ✓`, 'success');
         timerEl.textContent = '00:00:00';
