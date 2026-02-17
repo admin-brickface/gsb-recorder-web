@@ -22,6 +22,9 @@ let timerInterval = null;
 let recordingStartTime = null;
 let accessToken = null;
 let tokenClient = null;
+let wakeLock = null;
+let heartbeatInterval = null;
+let silentAudioBlobUrl = null;
 
 // ---- DOM Elements ----
 const customerNameInput = document.getElementById('customerName');
@@ -35,6 +38,8 @@ const googleSignInBtn = document.getElementById('googleSignInBtn');
 const overlay = document.getElementById('overlay');
 const overlayText = document.getElementById('overlayText');
 const silentAudio = document.getElementById('silentAudio');
+const iosWarning = document.getElementById('iosWarning');
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
 // ============================================
 // Google OAuth Sign-In
@@ -242,6 +247,11 @@ async function startRecording() {
         customerNameInput.disabled = true;
         setStatus('Recording...', '');
 
+        // Show iOS warning
+        if (isIOS && iosWarning) {
+            iosWarning.style.display = 'block';
+        }
+
         // Start timer
         recordingStartTime = Date.now();
         timerInterval = setInterval(updateTimer, 100);
@@ -309,6 +319,11 @@ function stopRecording() {
     customerNameInput.disabled = false;
     recordBtn.disabled = false;
 
+    // Hide iOS warning
+    if (iosWarning) {
+        iosWarning.style.display = 'none';
+    }
+
     // Stop timer
     clearInterval(timerInterval);
     timerInterval = null;
@@ -332,11 +347,84 @@ function updateTimer() {
 // ============================================
 // Background Persistence
 // ============================================
+
+// Generate a 30-second silent audio blob at runtime.
+// iOS Safari ignores very short or truly silent files,
+// so we create a proper WAV with near-inaudible noise.
+function generateSilentAudioBlob() {
+    const sampleRate = 44100;
+    const durationSec = 30;
+    const numSamples = sampleRate * durationSec;
+    const numChannels = 1;
+    const bytesPerSample = 2;
+    const dataSize = numSamples * numChannels * bytesPerSample;
+    const headerSize = 44;
+    const buffer = new ArrayBuffer(headerSize + dataSize);
+    const view = new DataView(buffer);
+
+    // WAV header
+    const writeString = (offset, str) => {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+    view.setUint16(32, numChannels * bytesPerSample, true);
+    view.setUint16(34, bytesPerSample * 8, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    // Write near-silent samples (amplitude 1 out of 32767 — inaudible but not zero)
+    for (let i = 0; i < numSamples; i++) {
+        view.setInt16(headerSize + i * bytesPerSample, (i % 2 === 0) ? 1 : -1, true);
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
+}
+
+// Request Wake Lock to prevent the screen from sleeping
+async function requestWakeLock() {
+    if ('wakeLock' in navigator) {
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', () => {
+                console.log('Wake Lock released');
+            });
+            console.log('Wake Lock acquired');
+        } catch (e) {
+            console.log('Wake Lock request failed:', e.message);
+        }
+    }
+}
+
+function releaseWakeLock() {
+    if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+    }
+}
+
 function startBackgroundPersistence() {
-    // Play silent audio to keep app alive in background
+    // Generate silent audio blob and use it as source
+    if (!silentAudioBlobUrl) {
+        const blob = generateSilentAudioBlob();
+        silentAudioBlobUrl = URL.createObjectURL(blob);
+    }
+    silentAudio.src = silentAudioBlobUrl;
+    silentAudio.volume = 0.01; // Near-zero but not zero (iOS ignores volume=0)
+    silentAudio.loop = true;
     silentAudio.play().catch(() => { });
 
-    // Set Media Session metadata
+    // Acquire Wake Lock (Chrome/Android — prevents screen from sleeping)
+    requestWakeLock();
+
+    // Set Media Session metadata (shows in lock screen / notification)
     if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
             title: 'GSB Recorder',
@@ -356,11 +444,26 @@ function startBackgroundPersistence() {
             silentAudio.play().catch(() => { });
         });
     }
+
+    // Heartbeat: check every 5s that silent audio is still playing
+    heartbeatInterval = setInterval(() => {
+        if (isRecording && silentAudio.paused) {
+            console.log('Heartbeat: restarting silent audio');
+            silentAudio.play().catch(() => { });
+        }
+    }, 5000);
 }
 
 function stopBackgroundPersistence() {
     silentAudio.pause();
     silentAudio.currentTime = 0;
+
+    releaseWakeLock();
+
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+    }
 
     if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = null;
@@ -369,6 +472,18 @@ function stopBackgroundPersistence() {
         navigator.mediaSession.setActionHandler('stop', null);
     }
 }
+
+// Re-acquire resources when the page becomes visible again
+// (iOS may release wake lock and pause audio on screen off)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isRecording) {
+        console.log('Page became visible during recording — restoring persistence');
+        requestWakeLock();
+        if (silentAudio.paused) {
+            silentAudio.play().catch(() => { });
+        }
+    }
+});
 
 // ============================================
 // MP3 Encoding

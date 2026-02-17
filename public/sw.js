@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gsb-recorder-v5';
+const CACHE_NAME = 'gsb-recorder-v6';
 const ASSETS = [
     '/',
     '/index.html',

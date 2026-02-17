@@ -271,6 +271,19 @@ body {
   color: var(--warning);
 }
 
+/* ---- iOS Background Warning ---- */
+.ios-warning {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--warning);
+  background: rgba(255, 149, 0, 0.1);
+  border: 1px solid rgba(255, 149, 0, 0.2);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
 /* ---- Google Sign-In Button ---- */
 .google-btn {
   display: flex;
